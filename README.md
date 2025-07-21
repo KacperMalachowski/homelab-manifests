@@ -40,13 +40,28 @@ This repository contains the Kubernetes manifests for the homelab cluster manage
 
 The cluster is managed by FluxCD and automatically syncs from this repository.
 
+### Deployment Order
+
+Flux deploys resources in the following order to handle dependencies:
+
+1. **Infrastructure** (`infrastructure/`):
+   - Traefik (ingress controller)
+   - Prometheus Operator (creates CRDs)
+   - Core monitoring stack (Prometheus, Grafana, AlertManager, Loki)
+
+2. **Monitoring Extras** (`monitoring-extras/`):
+   - ServiceMonitor resources (requires Prometheus Operator CRDs)
+   - Additional monitoring configurations
+   - Waits for infrastructure to be healthy before deploying
+
 ### Directory Structure
 ```
 clusters/prod/
 ├── flux-system/           # Flux configuration
 ├── infrastructure/        # Core infrastructure components
 │   ├── traefik/          # Ingress controller
-│   └── monitoring/       # Observability stack
+│   └── monitoring/       # Core observability stack
+└── monitoring-extras/     # Additional monitoring (depends on infrastructure)
 ```
 
 ### Local Access

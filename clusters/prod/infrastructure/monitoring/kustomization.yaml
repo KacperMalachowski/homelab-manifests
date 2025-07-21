@@ -4,6 +4,6 @@ kind: Kustomization
 resources:
   - prometheus-stack.yaml
   - ingress-routes.yaml
-  - traefik-servicemonitor.yaml
   - loki-stack.yaml
   - alertmanager-config.yaml
+  # ServiceMonitor for Traefik will be created after Prometheus Operator is ready

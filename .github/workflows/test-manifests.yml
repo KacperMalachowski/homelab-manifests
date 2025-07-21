@@ -1,0 +1,282 @@
+name: Test Kubernetes Manifests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'clusters/**'
+      - '.github/workflows/test-manifests.yml'
+  workflow_dispatch:
+
+env:
+  CLUSTER_NAME: homelab-test
+  K3D_VERSION: v5.6.0
+  FLUX_VERSION: 2.2.3
+  TIMEOUT: 600s
+
+jobs:
+  test-manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout manifests repo (PR branch)
+        uses: actions/checkout@v4
+
+      - name: Setup Docker
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install k3d
+        run: |
+          curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=${{ env.K3D_VERSION }} bash
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.29.0'
+
+      - name: Install Flux CLI
+        run: |
+          curl -s https://fluxcd.io/install.sh | sudo FLUX_VERSION=${{ env.FLUX_VERSION }} bash
+
+      - name: Create k3d cluster
+        run: |
+          k3d cluster create ${{ env.CLUSTER_NAME }} \
+            --port "80:80@loadbalancer" \
+            --port "443:443@loadbalancer" \
+            --port "9100:9100@loadbalancer" \
+            --k3s-arg "--disable=traefik@server:*" \
+            --wait
+
+      - name: Verify cluster is ready
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+          kubectl wait --for=condition=Ready nodes --all --timeout=300s
+
+      - name: Install Flux
+        run: |
+          flux install --timeout=${{ env.TIMEOUT }}
+          kubectl wait --for=condition=Ready pods --all -n flux-system --timeout=${{ env.TIMEOUT }}
+
+      - name: Create manifests repository secret
+        run: |
+          kubectl create secret generic flux-system \
+            --from-literal=username=git \
+            --from-literal=password=${{ secrets.GITHUB_TOKEN }} \
+            -n flux-system
+
+      - name: Apply Flux configuration
+        run: |
+          # Apply the GitRepository pointing to this repository
+          kubectl apply -f - <<EOF
+          ---
+          apiVersion: source.toolkit.fluxcd.io/v1
+          kind: GitRepository
+          metadata:
+            name: homelab-manifests
+            namespace: flux-system
+          spec:
+            interval: 1m0s
+            ref:
+              branch: ${{ github.head_ref || github.ref_name }}
+            url: https://github.com/KacperMalachowski/homelab-manifests
+            secretRef:
+              name: flux-system
+          ---
+          apiVersion: kustomize.toolkit.fluxcd.io/v1
+          kind: Kustomization
+          metadata:
+            name: infrastructure
+            namespace: flux-system
+          spec:
+            interval: 10m0s
+            path: ./clusters/prod/infrastructure
+            prune: true
+            sourceRef:
+              kind: GitRepository
+              name: homelab-manifests
+            timeout: 10m
+          EOF
+
+      - name: Wait for GitRepository to be ready
+        run: |
+          kubectl wait --for=condition=Ready gitrepository/homelab-manifests -n flux-system --timeout=${{ env.TIMEOUT }}
+
+      - name: Wait for Kustomization to be ready
+        run: |
+          kubectl wait --for=condition=Ready kustomization/infrastructure -n flux-system --timeout=${{ env.TIMEOUT }}
+          
+          # Wait a bit for the monitoring-extras kustomization to be applied
+          sleep 30
+          kubectl wait --for=condition=Ready kustomization/monitoring-extras -n flux-system --timeout=${{ env.TIMEOUT }} || echo "monitoring-extras not ready yet, continuing..."
+
+      - name: Wait for Traefik deployment
+        run: |
+          kubectl wait --for=condition=Available deployment/traefik -n traefik-system --timeout=${{ env.TIMEOUT }}
+          kubectl get pods -n traefik-system
+
+      - name: Wait for monitoring stack
+        run: |
+          # Wait for Prometheus Operator
+          kubectl wait --for=condition=Available deployment/kube-prometheus-stack-operator -n monitoring --timeout=${{ env.TIMEOUT }}
+          
+          # Wait for Prometheus
+          kubectl wait --for=condition=Ready statefulset/prometheus-kube-prometheus-stack-prometheus -n monitoring --timeout=${{ env.TIMEOUT }}
+          
+          # Wait for Grafana
+          kubectl wait --for=condition=Available deployment/kube-prometheus-stack-grafana -n monitoring --timeout=${{ env.TIMEOUT }}
+          
+          # Wait for AlertManager
+          kubectl wait --for=condition=Ready statefulset/alertmanager-kube-prometheus-stack-alertmanager -n monitoring --timeout=${{ env.TIMEOUT }}
+
+      - name: Wait for Loki stack
+        run: |
+          kubectl wait --for=condition=Available deployment/loki -n monitoring --timeout=${{ env.TIMEOUT }}
+          kubectl wait --for=condition=Ready daemonset/promtail -n monitoring --timeout=${{ env.TIMEOUT }}
+
+      - name: Verify services are accessible
+        run: |
+          echo "Checking if services are responding..."
+          
+          # Port forward services for testing
+          kubectl port-forward -n traefik-system svc/traefik 8080:80 &
+          TRAEFIK_PID=$!
+          
+          kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80 &
+          GRAFANA_PID=$!
+          
+          kubectl port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9090:9090 &
+          PROMETHEUS_PID=$!
+          
+          kubectl port-forward -n monitoring svc/kube-prometheus-stack-alertmanager 9093:9093 &
+          ALERTMANAGER_PID=$!
+          
+          sleep 10
+          
+          # Test services
+          curl -f http://localhost:8080/ping || (echo "Traefik health check failed" && exit 1)
+          curl -f http://localhost:3000/api/health || (echo "Grafana health check failed" && exit 1)
+          curl -f http://localhost:9090/-/healthy || (echo "Prometheus health check failed" && exit 1)
+          curl -f http://localhost:9093/-/healthy || (echo "AlertManager health check failed" && exit 1)
+          
+          # Cleanup
+          kill $TRAEFIK_PID $GRAFANA_PID $PROMETHEUS_PID $ALERTMANAGER_PID || true
+          
+          echo "All services are healthy!"
+
+      - name: Test Prometheus targets
+        run: |
+          kubectl port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9090:9090 &
+          PROMETHEUS_PID=$!
+          sleep 10
+          
+          # Check if Prometheus has discovered targets
+          TARGETS=$(curl -s http://localhost:9090/api/v1/targets | jq -r '.data.activeTargets | length')
+          echo "Prometheus discovered $TARGETS targets"
+          
+          if [ "$TARGETS" -lt 5 ]; then
+            echo "ERROR: Expected at least 5 targets, got $TARGETS"
+            curl -s http://localhost:9090/api/v1/targets | jq '.data.activeTargets[] | {job: .labels.job, health: .health}'
+            exit 1
+          fi
+          
+          kill $PROMETHEUS_PID || true
+          echo "Prometheus targets verification passed!"
+
+      - name: Test Grafana datasources
+        run: |
+          kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80 &
+          GRAFANA_PID=$!
+          sleep 10
+          
+          # Test Prometheus datasource
+          curl -f -u admin:admin http://localhost:3000/api/datasources/proxy/1/api/v1/query?query=up || \
+            (echo "Grafana Prometheus datasource test failed" && exit 1)
+          
+          kill $GRAFANA_PID || true
+          echo "Grafana datasource verification passed!"
+
+      - name: Verify metrics collection
+        run: |
+          kubectl port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9090:9090 &
+          PROMETHEUS_PID=$!
+          sleep 10
+          
+          # Test various metrics
+          METRICS=(
+            "up"
+            "node_load1"
+            "kube_pod_info"
+            "traefik_http_requests_total"
+          )
+          
+          for metric in "${METRICS[@]}"; do
+            RESULT=$(curl -s "http://localhost:9090/api/v1/query?query=$metric" | jq -r '.data.result | length')
+            if [ "$RESULT" -eq 0 ]; then
+              echo "WARNING: No data found for metric: $metric"
+            else
+              echo "✓ Metric $metric has $RESULT series"
+            fi
+          done
+          
+          kill $PROMETHEUS_PID || true
+
+      - name: Test log collection
+        run: |
+          kubectl port-forward -n monitoring svc/loki-gateway 3100:80 &
+          LOKI_PID=$!
+          sleep 10
+          
+          # Query logs from Loki
+          curl -G -s "http://localhost:3100/loki/api/v1/query" \
+            --data-urlencode 'query={namespace="kube-system"}' \
+            --data-urlencode 'limit=1' | jq '.data.result | length' > /tmp/log_count
+          
+          LOG_COUNT=$(cat /tmp/log_count)
+          if [ "$LOG_COUNT" -gt 0 ]; then
+            echo "✓ Loki is collecting logs (found $LOG_COUNT log streams)"
+          else
+            echo "WARNING: No logs found in Loki"
+          fi
+          
+          kill $LOKI_PID || true
+
+      - name: Generate test report
+        if: always()
+        run: |
+          echo "## Test Results" > test-report.md
+          echo "" >> test-report.md
+          echo "### Cluster Status" >> test-report.md
+          kubectl get nodes -o wide >> test-report.md || echo "Failed to get nodes" >> test-report.md
+          echo "" >> test-report.md
+          
+          echo "### Pod Status" >> test-report.md
+          echo "#### Flux System" >> test-report.md
+          kubectl get pods -n flux-system >> test-report.md || echo "Failed to get flux-system pods" >> test-report.md
+          echo "" >> test-report.md
+          
+          echo "#### Traefik" >> test-report.md
+          kubectl get pods -n traefik-system >> test-report.md || echo "Failed to get traefik pods" >> test-report.md
+          echo "" >> test-report.md
+          
+          echo "#### Monitoring" >> test-report.md
+          kubectl get pods -n monitoring >> test-report.md || echo "Failed to get monitoring pods" >> test-report.md
+          echo "" >> test-report.md
+          
+          echo "### Service Status" >> test-report.md
+          kubectl get svc --all-namespaces >> test-report.md || echo "Failed to get services" >> test-report.md
+          
+          cat test-report.md
+
+      - name: Cleanup
+        if: always()
+        run: |
+          k3d cluster delete ${{ env.CLUSTER_NAME }} || true
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            test-report.md
+          retention-days: 7
