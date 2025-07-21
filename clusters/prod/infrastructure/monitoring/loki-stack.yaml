@@ -30,29 +30,13 @@ spec:
       commonConfig:
         replication_factor: 1
       storage:
-        type: 'filesystem'
-      schemaConfig:
-        configs:
-          - from: "2024-01-01"
-            store: tsdb
-            index:
-              prefix: loki_index_
-              period: 24h
-            object_store: filesystem
-            schema: v13
+        type: filesystem
     singleBinary:
       replicas: 1
       persistence:
         enabled: true
         storageClass: local-path
         size: 10Gi
-      resources:
-        limits:
-          cpu: 1
-          memory: 2Gi
-        requests:
-          cpu: 1
-          memory: 2Gi
     chunksCache:
       enabled: false
     resultsCache:
@@ -88,8 +72,7 @@ spec:
   values:
     config:
       clients:
-        - url: http://loki-gateway/loki/api/v1/push
-          tenant_id: 1
+        - url: http://loki:3100/loki/api/v1/push
     resources:
       limits:
         cpu: 200m

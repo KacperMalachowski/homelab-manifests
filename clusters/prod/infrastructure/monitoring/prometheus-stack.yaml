@@ -73,7 +73,6 @@ spec:
           root_url: https://grafana.malachowski.me
         security:
           admin_user: admin
-          admin_password: admin
       dashboardProviders:
         dashboardproviders.yaml:
           apiVersion: 1

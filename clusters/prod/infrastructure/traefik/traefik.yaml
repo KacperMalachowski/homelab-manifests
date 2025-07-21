@@ -114,9 +114,7 @@ spec:
 
     certResolvers: {}
 
-    experimental:
-      plugins:
-        enabled: false
+    # Remove experimental plugins to avoid configuration errors
 
     affinity: {}
 
