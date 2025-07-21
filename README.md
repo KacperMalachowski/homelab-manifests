@@ -25,11 +25,12 @@ This repository contains the Kubernetes manifests for the homelab cluster manage
   - **Promtail**: Log shipping agent
 
 ##### Access URLs
-- **Grafana**: `https://grafana.local`
+- **Grafana**: `https://grafana.malachowski.me`
   - Username: `admin`
   - Password: `admin`
-- **Prometheus**: `https://prometheus.local`
-- **AlertManager**: `https://alertmanager.local`
+- **Prometheus**: `https://prometheus.malachowski.me`
+- **AlertManager**: `https://alertmanager.malachowski.me`
+- **Traefik Dashboard**: `https://traefik.malachowski.me`
 
 ##### Pre-configured Dashboards
 - Kubernetes Cluster Monitoring (GrafanaNet ID: 7249)
@@ -66,13 +67,13 @@ clusters/prod/
 
 ### Local Access
 
-To access the services locally, add the following entries to your `/etc/hosts` file:
+DNS records should point the following subdomains to your cluster's external IP:
 
 ```
-<YOUR_CLUSTER_IP> traefik.local
-<YOUR_CLUSTER_IP> grafana.local
-<YOUR_CLUSTER_IP> prometheus.local
-<YOUR_CLUSTER_IP> alertmanager.local
+traefik.malachowski.me     -> <YOUR_CLUSTER_IP>
+grafana.malachowski.me     -> <YOUR_CLUSTER_IP>
+prometheus.malachowski.me  -> <YOUR_CLUSTER_IP>
+alertmanager.malachowski.me -> <YOUR_CLUSTER_IP>
 ```
 
 Replace `<YOUR_CLUSTER_IP>` with the external IP of your Traefik LoadBalancer service.
@@ -104,7 +105,10 @@ The configuration assumes a storage class named `local-path` is available for pe
 ## Security Notes
 
 - Default Grafana credentials should be changed in production
-- Consider implementing proper TLS certificates
+- **TLS Certificates**: The current configuration uses Traefik's default TLS setup. For production, consider:
+  - Setting up Let's Encrypt with Traefik for automatic SSL certificates
+  - Configuring cert-manager for certificate management
+  - Adding proper certificate resolvers in Traefik configuration
 - Review and customize AlertManager configuration for your notification preferences
 - Traefik dashboard access should be restricted in production environments
 

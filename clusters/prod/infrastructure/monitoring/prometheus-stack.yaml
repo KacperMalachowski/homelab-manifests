@@ -70,7 +70,7 @@ spec:
       adminPassword: "admin"
       grafana.ini:
         server:
-          root_url: http://grafana.local
+          root_url: https://grafana.malachowski.me
         security:
           admin_user: admin
           admin_password: admin

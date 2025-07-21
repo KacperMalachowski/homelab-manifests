@@ -8,7 +8,7 @@ spec:
   entryPoints:
     - websecure
   routes:
-    - match: Host(`grafana.local`)
+    - match: Host(`grafana.malachowski.me`)
       kind: Rule
       services:
         - name: kube-prometheus-stack-grafana
@@ -24,7 +24,7 @@ spec:
   entryPoints:
     - websecure
   routes:
-    - match: Host(`prometheus.local`)
+    - match: Host(`prometheus.malachowski.me`)
       kind: Rule
       services:
         - name: kube-prometheus-stack-prometheus
@@ -40,7 +40,7 @@ spec:
   entryPoints:
     - websecure
   routes:
-    - match: Host(`alertmanager.local`)
+    - match: Host(`alertmanager.malachowski.me`)
       kind: Rule
       services:
         - name: kube-prometheus-stack-alertmanager

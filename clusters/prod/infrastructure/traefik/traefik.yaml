@@ -58,7 +58,7 @@ spec:
         enabled: true
         annotations: {}
         labels: {}
-        matchRule: Host(`traefik.local`)
+        matchRule: Host(`traefik.malachowski.me`)
         entryPoints: ["websecure"]
         middlewares: []
         tls: {}

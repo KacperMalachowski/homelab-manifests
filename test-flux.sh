@@ -53,6 +53,11 @@ if grep -r "kind: ServiceMonitor" clusters/prod/infrastructure/ 2>/dev/null; the
     echo "⚠️  WARNING: ServiceMonitor found in infrastructure - should be in monitoring-extras"
 fi
 
+# Check if IngressRoute is used before Traefik
+if grep -r "kind: IngressRoute" clusters/prod/infrastructure/ 2>/dev/null; then
+    echo "⚠️  WARNING: IngressRoute found in infrastructure - should be in monitoring-extras"
+fi
+
 # Check if monitoring-extras exists and has proper dependencies
 if [ -d "clusters/prod/monitoring-extras" ]; then
     if grep -q "dependsOn" clusters/prod/flux-system/flux-sources.yaml; then
