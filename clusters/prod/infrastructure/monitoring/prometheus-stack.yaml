@@ -34,14 +34,15 @@ spec:
       enabled: true
       alertmanagerSpec:
         replicas: 2
-        storage:
-          volumeClaimTemplate:
-            spec:
-              storageClassName: local-path
-              accessModes: ["ReadWriteOnce"]
-              resources:
-                requests:
-                  storage: 50Gi
+        # Disable storage for now - enable in production
+        # storage:
+        #   volumeClaimTemplate:
+        #     spec:
+        #       storageClassName: local-path
+        #       accessModes: ["ReadWriteOnce"]
+        #       resources:
+        #         requests:
+        #           storage: 50Gi
         resources:
           limits:
             cpu: 100m
@@ -54,12 +55,14 @@ spec:
       enabled: true
       replicas: 1
       persistence:
-        enabled: true
-        type: pvc
-        storageClassName: local-path
-        accessModes:
-          - ReadWriteOnce
-        size: 10Gi
+        enabled: false
+        # For production, enable persistence and install storage provisioner:
+        # enabled: true
+        # type: pvc
+        # storageClassName: local-path
+        # accessModes:
+        #   - ReadWriteOnce
+        # size: 10Gi
       resources:
         limits:
           cpu: 200m
@@ -171,14 +174,15 @@ spec:
         scrapeInterval: 30s
         evaluationInterval: 30s
         enableAdminAPI: false
-        storageSpec:
-          volumeClaimTemplate:
-            spec:
-              storageClassName: local-path
-              accessModes: ["ReadWriteOnce"]
-              resources:
-                requests:
-                  storage: 20Gi
+        # Disable storage for now - enable in production
+        # storageSpec:
+        #   volumeClaimTemplate:
+        #     spec:
+        #       storageClassName: local-path
+        #       accessModes: ["ReadWriteOnce"]
+        #       resources:
+        #         requests:
+        #           storage: 20Gi
         resources:
           limits:
             cpu: 2000m

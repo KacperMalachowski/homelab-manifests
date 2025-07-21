@@ -7,7 +7,23 @@ echo "📝 Current Helm release status:"
 kubectl get helmreleases -A
 
 echo ""
-echo "🚀 Suspending and resuming Flux kustomizations to trigger redeployment..."
+echo "� Checking for storage issues..."
+kubectl get pvc -A
+
+echo ""
+echo "🗄️ Checking storage classes..."
+kubectl get storageclass
+
+STORAGE_CLASSES=$(kubectl get storageclass --no-headers | wc -l)
+if [ "$STORAGE_CLASSES" -eq 0 ]; then
+    echo "⚠️  No storage classes found!"
+    echo "💡 Options:"
+    echo "   1. Run: chmod +x install-storage.sh && ./install-storage.sh"
+    echo "   2. Or the configurations have been updated to disable persistent storage for testing"
+fi
+
+echo ""
+echo "�🚀 Suspending and resuming Flux kustomizations to trigger redeployment..."
 
 # Suspend the infrastructure kustomization
 kubectl patch kustomization infrastructure -n flux-system -p '{"spec":{"suspend":true}}' --type=merge

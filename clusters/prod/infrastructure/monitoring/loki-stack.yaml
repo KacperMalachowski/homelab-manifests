@@ -34,9 +34,11 @@ spec:
     singleBinary:
       replicas: 1
       persistence:
-        enabled: true
-        storageClass: local-path
-        size: 10Gi
+        enabled: false
+        # For production, enable persistence and install storage provisioner:
+        # enabled: true
+        # storageClass: local-path
+        # size: 10Gi
     chunksCache:
       enabled: false
     resultsCache:
