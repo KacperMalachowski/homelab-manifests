@@ -33,7 +33,7 @@ spec:
     alertmanager:
       enabled: true
       alertmanagerSpec:
-        replicas: 2
+        replicas: 1  # Reduce from 2 to 1 for single-node cluster
         # Disable storage for now - enable in production
         # storage:
         #   volumeClaimTemplate:
@@ -48,8 +48,8 @@ spec:
             cpu: 100m
             memory: 128Mi
           requests:
-            cpu: 100m
-            memory: 128Mi
+            cpu: 50m  # Reduce from 100m to 50m
+            memory: 64Mi  # Reduce from 128Mi to 64Mi
 
     grafana:
       enabled: true
@@ -65,11 +65,11 @@ spec:
         # size: 10Gi
       resources:
         limits:
-          cpu: 200m
-          memory: 200Mi
+          cpu: 100m  # Reduce from 200m to 100m
+          memory: 128Mi  # Reduce from 200Mi to 128Mi
         requests:
-          cpu: 100m
-          memory: 128Mi
+          cpu: 50m  # Reduce from 100m to 50m
+          memory: 64Mi  # Reduce from 128Mi to 64Mi
       adminPassword: "admin"
       grafana.ini:
         server:
@@ -154,25 +154,25 @@ spec:
       enabled: true
       resources:
         limits:
-          cpu: 200m
-          memory: 200Mi
+          cpu: 100m  # Reduce from 200m to 100m
+          memory: 128Mi  # Reduce from 200Mi to 128Mi
         requests:
-          cpu: 100m
-          memory: 100Mi
+          cpu: 50m  # Reduce from 100m to 50m
+          memory: 64Mi  # Reduce from 100Mi to 64Mi
 
     prometheus:
       enabled: true
       prometheusSpec:
-        replicas: 2
+        replicas: 1  # Reduce from 2 to 1 for single-node cluster
         shards: 1
-        retention: 30d
-        retentionSize: 15GiB
+        retention: 7d  # Reduce retention from 30d to 7d
+        retentionSize: 2GiB  # Reduce from 15GiB to 2GiB
         ruleSelectorNilUsesHelmValues: false
         serviceMonitorSelectorNilUsesHelmValues: false
         podMonitorSelectorNilUsesHelmValues: false
         probeSelectorNilUsesHelmValues: false
-        scrapeInterval: 30s
-        evaluationInterval: 30s
+        scrapeInterval: 60s  # Reduce scraping frequency
+        evaluationInterval: 60s
         enableAdminAPI: false
         # Disable storage for now - enable in production
         # storageSpec:
@@ -185,11 +185,11 @@ spec:
         #           storage: 20Gi
         resources:
           limits:
-            cpu: 2000m
-            memory: 8Gi
+            cpu: 500m  # Reduce from 2000m to 500m
+            memory: 1Gi  # Reduce from 8Gi to 1Gi
           requests:
-            cpu: 1000m
-            memory: 4Gi
+            cpu: 200m  # Reduce from 1000m to 200m
+            memory: 512Mi  # Reduce from 4Gi to 512Mi
 
     defaultRules:
       create: true
