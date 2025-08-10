@@ -3,7 +3,7 @@
   "extends": [
     "config:recommended",
     ":dependencyDashboard",
-    ":sementicCommits",
+    ":semanticCommits",
     ":automergeDigest",
     ":automergeMinor"
   ],
